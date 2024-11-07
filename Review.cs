@@ -1,9 +1,5 @@
 ﻿using Microsoft.ML.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using CsvHelper.Configuration;
 
 namespace TextTransformation
 {
@@ -24,7 +20,6 @@ namespace TextTransformation
             this.ReviewText = ReviewText;
         }
 
-
         public Review(string ReviewText, float Rating) 
         {
             this.ReviewText = ReviewText;
@@ -37,7 +32,22 @@ namespace TextTransformation
             this.Rating = rating;
             this.Sentiment = sentiment;
         }
+    }
 
-        
+    public class ReviewMap : ClassMap<Review>
+    {
+        public ReviewMap()
+        {
+            Map(m => m.ReviewText).Name("ReviewText");
+            Map(m => m.Rating).Name("Rating");
+            Map(m => m.Sentiment).Name("Sentiment");
+        }
+    }
+
+    public class ReviewPrediction
+    {
+        [ColumnName("PredictedLabel")]
+        public string PredictedSentiment { get; set; }
+        public float[] Score { get; set; }
     }
 }

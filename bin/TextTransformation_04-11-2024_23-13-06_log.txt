@@ -1,0 +1,18 @@
+MacroAccuracy: 0.7075
+MicroAccuracy: 0.6955
+LogLoss: 4.4246
+LogLossReduction: -3.05
+LogLoss in class 0: 2.27
+LogLoss in class 1: 8.03
+LogLoss in class 2: 2.55
+
+Confusion table
+            ||========================
+PREDICTED   ||     0 |     1 |     2 | Recall
+TRUTH       ||========================
+0. Positive ||   581 |    85 |    31 | 0.8336
+1.  Neutral ||   277 |   304 |   119 | 0.4343
+2. Negative ||    33 |    46 |   465 | 0.8548
+            ||========================
+Precision   ||0.6521 |0.6989 |0.7561 |
+

@@ -1,13 +1,5 @@
-﻿//Source: https://devblogs.microsoft.com/dotnet/introducing-the-ml-dotnet-text-classification-api-preview/
-using Microsoft.ML;
-using Microsoft.ML.Data;
-using Microsoft.Data.Analysis;
+﻿using Microsoft.ML;
 using Microsoft.ML.TorchSharp;
-using System;
-using System.IO;
-using System.Net;
-using System.Dynamic;
-using System.Formats.Asn1;
 using System.Globalization;
 using System.Text;
 using TextTransformation;
@@ -27,8 +19,7 @@ class Program
         string savePath5 = @"..\..\dataset5.csv"; // after lowering case text
         string savePath6 = @"..\..\dataset6.csv"; // after assigning labels
 
-        string savePaths1 = @"..\..\smalldataset1.csv";
-        string savePaths2 = @"..\..\smalldataset2.csv";
+        string modelPath = @"..\..\TextTransformation_0.7131_0.7027.zip";
 
         List<Review> data = ReadCSV(savePath6);
 
@@ -50,12 +41,8 @@ class Program
         //List<Review> data6 = AssignLabel(data5);
         //SaveReviewsToCsv(data6, @"..\..\dataset6.csv");
 
-        //List<Review> data2 = AssignLabel(data);
-        //SaveReviewsToCsv(data2, @"..\..\smalldataset2.csv");
-
         TrainingData(data);
-        //Test();
-        //Console.WriteLine("Done");
+        //Test(modelPath);
     }
 
     public static List<Review> ReadCSV(string filePath)
@@ -201,6 +188,19 @@ class Program
         }
         return ret;
     }
+    private static string PredictFromModel(string modelPath, string review)
+    {
+        var mlContext = new MLContext();
+        DataViewSchema modelSchema;
+        var loadedModel = mlContext.Model.Load(modelPath, out modelSchema);
+
+        // Prediction example with loaded model
+        var predictionEngine = mlContext.Model.CreatePredictionEngine<Review, ReviewPrediction>(loadedModel);
+        var sampleReview = new Review { ReviewText = review };
+        var prediction = predictionEngine.Predict(sampleReview);
+
+        return prediction.PredictedSentiment;
+    }
 
     public static void TrainingData(List<Review> reviews)
     {
@@ -242,47 +242,45 @@ class Program
         // The result of calling Transform is an IDataView with your predicted values. To make it easier to view your predictions, convert the IDataView to an IDataFrame.
         //var columnsToSelect = new[] { "ReviewText", "Sentiment", "PredictedLabel" };
         //var predictions = predictionIDV.ToDataFrame(columnsToSelect);
-        //Console.WriteLine("Text\tSentiment\tPredictedLabel");
-        //foreach (var row in predictions.Rows)
-        //{
-        //    Console.WriteLine(string.Join("\t", row));
-        //}
 
         // Evaluate the model
         var evaluationMetrics = mlContext.MulticlassClassification.Evaluate(predictionIDV);
-
+        
         Console.WriteLine($"MacroAccuracy: {evaluationMetrics.MacroAccuracy:F4}");
         Console.WriteLine($"MicroAccuracy: {evaluationMetrics.MicroAccuracy:F4}");
         Console.WriteLine($"LogLoss: {evaluationMetrics.LogLoss:F4}");
-        //Console.WriteLine($"LogLossReduction: {evaluationMetrics.LogLossReduction:F2}");
-        //for (int i = 0; i < evaluationMetrics.PerClassLogLoss.Count; i++)
-        //{
-        //    Console.WriteLine($"LogLoss in class {i}: {evaluationMetrics.PerClassLogLoss[i]:F2}");
-        //}
-
         Console.WriteLine(evaluationMetrics.ConfusionMatrix.GetFormattedConfusionTable());
 
         // Save the model
-        string modelPath = $"D:/Documents/_Programming_/DMML/TextTransformation/bin/TextTransformation_{evaluationMetrics.MacroAccuracy:F4}_{evaluationMetrics.MicroAccuracy:F4}.zip";
+        string date = DateTime.Now.ToString("dd-MM-yyyy_HH-mm-ss");
+        string modelPath = $"D:/Documents/_Programming_/DMML/TextTransformation/bin/TextTransformation_{date}.zip";
         mlContext.Model.Save(model, trainData.Schema, modelPath);
         Console.WriteLine($"Model saved to: {modelPath}");
+
+        // Save the evaluated informations
+        string logFilePath = modelPath.Replace(".zip", "_log.txt");
+        using (StreamWriter writer = new StreamWriter(logFilePath))
+        {
+            writer.WriteLine($"MacroAccuracy: {evaluationMetrics.MacroAccuracy:F4}");
+            writer.WriteLine($"MicroAccuracy: {evaluationMetrics.MicroAccuracy:F4}");
+            writer.WriteLine($"TopKPredictionCount: {evaluationMetrics.TopKPredictionCount}");
+            writer.WriteLine($"TopKAccuracy: {evaluationMetrics.TopKAccuracy:F4}");
+            for (int i = 0; i < evaluationMetrics.TopKPredictionCount; i++)
+            {
+                writer.WriteLine($"TopKAccuracy for K{i}: {evaluationMetrics.TopKAccuracyForAllK[i]:F4}");
+            }
+            writer.WriteLine($"LogLoss: {evaluationMetrics.LogLoss:F4}");
+            writer.WriteLine($"LogLossReduction: {evaluationMetrics.LogLossReduction:F4}");
+            for (int i = 0; i < evaluationMetrics.PerClassLogLoss.Count; i++)
+            {
+                writer.WriteLine($"LogLoss in class {i}: {evaluationMetrics.PerClassLogLoss[i]:F4}");
+            }
+            writer.WriteLine(evaluationMetrics.ConfusionMatrix.GetFormattedConfusionTable());
+        }
+        Console.WriteLine($"Log saved to: {logFilePath}");
     }
 
-    private static string PredictFromModel(string modelPath, string review)
-    {
-        var mlContext = new MLContext();
-        DataViewSchema modelSchema;
-        var loadedModel = mlContext.Model.Load(modelPath, out modelSchema);
-
-        // Prediction example with loaded model
-        var predictionEngine = mlContext.Model.CreatePredictionEngine<Review, ReviewPrediction>(loadedModel);
-        var sampleReview = new Review { ReviewText = review };
-        var prediction = predictionEngine.Predict(sampleReview);
-
-        return prediction.PredictedSentiment;
-    }
-
-    private static void Test()
+    private static void Test(string modelPath)
     {
         var feedbackSamples = new[]
 {
@@ -309,8 +307,6 @@ class Program
     "i ordered a grande tea and they used only one tea bag, the same as a tall tea. what is the extra charge for in the grande size? water? come on, give me a break.",
     "i order the same things at many starbucks in california. this is the only starbucks that charges me more for the same product. i always order a grande americano with steamed breve. i am charged 65 cents more. i am told it is everything from the breve to the labor. everywhere else it is $2.55."
 };
-        string modelPath = @"..\..\SentimentModel_0.7982_0.8743.zip";
-
         for (int i = 0; i < feedbackSamples.Length; i++)
         {
             Console.WriteLine(feedbackSamples[i] + " :   " + PredictFromModel(modelPath, feedbackSamples[i]));
